@@ -12,6 +12,7 @@ import (
 	"io/ioutil"
 	"strconv"
 	"strings"
+	"time"
 )
 
 var (
@@ -250,7 +251,16 @@ type ProcessInfo struct {
 	PID        uint
 	Name       string
 	MemoryUsed uint64
+	Util       *ProcessUtilizationSample
 	Type       ProcessType
+}
+
+type ProcessUtilizationSample struct {
+	TimeStamp time.Duration
+	SmUtil    uint
+	MemUtil   uint
+	EncUtil   uint
+	DecUtil   uint
 }
 
 type DeviceStatus struct {

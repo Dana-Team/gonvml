@@ -20,4 +20,10 @@ func main() {
 	} else {
 		fmt.Println(device.UUID)
 	}
+	p, _ := device.Status()
+	if err != nil {
+		failedMsg("NewDevice", err)
+	} else {
+		fmt.Println(p.Processes[0].MemoryUsed)
+	}
 }
