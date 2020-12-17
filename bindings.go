@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -22,6 +23,7 @@ const (
 	szUUID     = C.NVML_DEVICE_UUID_BUFFER_SIZE
 	szProcs    = 32
 	szProcName = 64
+	OP_SUCCESS = C.NVML_SUCCESS
 
 	XidCriticalError = C.nvmlEventTypeXidCriticalError
 )
@@ -537,6 +539,12 @@ func (h handle) deviceGetAllRunningProcesses() ([]ProcessInfo, error) {
 
 	allPids := make(map[uint]ProcessInfo)
 
+	pUtil, err := h.getProcessUtilization(1024, time.Second/2)
+
+	if err != nil {
+		return nil, err
+	}
+
 	for i, pid := range cPids {
 		name, err := processName(pid)
 		if err != nil {
@@ -545,8 +553,9 @@ func (h handle) deviceGetAllRunningProcesses() ([]ProcessInfo, error) {
 		allPids[pid] = ProcessInfo{
 			PID:        pid,
 			Name:       name,
-			MemoryUsed: cpMems[i] / (1024 * 1024), // MiB
+			MemoryUsed: cpMems[i] / (1024 * 1024 ), // MiB
 			Type:       Compute,
+			Util: 		pUtil[pid],
 		}
 
 	}
@@ -566,6 +575,7 @@ func (h handle) deviceGetAllRunningProcesses() ([]ProcessInfo, error) {
 				Name:       name,
 				MemoryUsed: gpMems[i] / (1024 * 1024), // MiB
 				Type:       Graphics,
+				Util: 		pUtil[pid],
 			}
 		}
 	}
@@ -711,4 +721,30 @@ func (h handle) getPeristenceMode() (state ModeState, err error) {
 		return
 	}
 	return ModeState(mode), errorString(r)
+}
+
+func (h handle) getProcessUtilization(maxProcess int, since time.Duration) (map[uint]*ProcessUtilizationSample, error) {
+	lastTs := C.ulonglong(time.Now().Add(-1*since).UnixNano() / 1000)
+	var count   C.uint
+	samples := make(map[uint]*ProcessUtilizationSample)
+	count = C.uint(maxProcess)
+	d := make([]C.nvmlProcessUtilizationSample_t, uint(count))
+
+	r := C.nvmlDeviceGetProcessUtilization(h.dev, &d[0], &count, lastTs)
+
+	if r != OP_SUCCESS && r != C.NVML_ERROR_NOT_FOUND {
+		return nil, errorString(r)
+	}
+
+	for i := 0; i < int(count); i++ {
+		samples[uint(d[i].pid)] = &ProcessUtilizationSample{
+			TimeStamp: time.Duration(d[i].timeStamp),
+			SmUtil:    uint(d[i].smUtil),
+			MemUtil:   uint(d[i].memUtil),
+			EncUtil:   uint(d[i].encUtil),
+			DecUtil:   uint(d[i].decUtil),
+		}
+	}
+
+	return samples, nil
 }
