@@ -1,0 +1,48 @@
+version: v1beta9
+images:
+  app:
+    image: razbne/gonvml
+    preferSyncOverRebuild: true
+    injectRestartHelper: true
+    appendDockerfileInstructions:
+    - USER root
+    build:
+      docker:
+        options:
+          target: build
+deployments:
+- name: gonvml
+  helm:
+    componentChart: true
+    values:
+      containers:
+      - image: razbne/gonvml
+dev:
+  sync:
+  - imageName: app
+    excludePaths:
+    - .git/
+    uploadExcludePaths:
+    - devspace.yaml
+    onUpload:
+      restartContainer: true
+profiles:
+- name: production
+  patches:
+  - op: remove
+    path: images.app.appendDockerfileInstructions
+  - op: remove
+    path: images.app.injectRestartHelper
+  - op: remove
+    path: images.app.build.docker.options.target
+- name: interactive
+  patches:
+  - op: add
+    path: dev.interactive
+    value:
+      defaultEnabled: true
+  - op: add
+    path: images.app.entrypoint
+    value:
+    - sleep
+    - "9999999999"
